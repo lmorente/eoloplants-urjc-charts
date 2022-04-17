@@ -3,11 +3,11 @@ entries:
   eoloplants:
   - apiVersion: v1
     appVersion: 1.0.0
-    created: "2022-04-17T14:59:04.0972836+02:00"
+    created: "2022-04-17T16:10:40.5907395+02:00"
     description: A Helm chart for eoloplants.
-    digest: eda0c647c79a7909002e60aa5dd7bac72bdeec784e4bfb215600e0ca48789841
+    digest: a7720e7a9816e7511277fe1256def11207b80c3b47e84e711821695f71c413dd
     name: eoloplants
     urls:
     - eoloplants-0.1.0.tgz
     version: 0.1.0
-generated: "2022-04-17T14:59:04.05488+02:00"
+generated: "2022-04-17T16:10:40.5455892+02:00"
