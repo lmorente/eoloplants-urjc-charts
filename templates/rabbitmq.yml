@@ -1,0 +1,103 @@
+---
+{{- $fullName := include "eoloplants.fullname" . -}}
+{{- $useExistingVolume := (.Values.persistence.useExistingVolumes) -}}
+{{- $dinamicallyCreateVolume := (.Values.persistence.dinamicallyCreateVolumes) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}-rabbitmq-deploy
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ $fullName }}-rabbitmq
+      {{- include "eoloplants.selectorLabels" . | nindent 6 }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ $fullName }}-rabbitmq
+        {{- include "eoloplants.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: {{ $fullName }}-rabbitmq
+        image: {{ .Values.images.rabbitmq.repository }}:{{ .Values.images.rabbitmq.tag }} 
+        imagePullPolicy: {{ .Values.images.rabbitmq.pullPolicy }}
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: root
+        - name: RABBITMQ_DEFAULT_PASS
+          value: password
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+        volumeMounts:
+        - mountPath: /var/lib/rabbitmq/mnesia
+          name: {{ $fullName }}-datarabbit
+      volumes:
+      - name: {{ $fullName }}-datarabbit
+        persistentVolumeClaim:
+          claimName: {{ $fullName }}-rabbit-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullName }}-rabbit-pvc
+spec:
+  {{- if $useExistingVolume }}
+  storageClassName: {{ $fullName }}-{{ .Values.persistence.rabbitmq.storageClass }}
+  {{- else if $dinamicallyCreateVolume }}
+  storageClassName: {{ .Values.persistence.defaultStorageClassName }}
+  {{- else }}
+  storageClassName: {{ $fullName }}-rabbit
+  {{- end }}
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName }}-rabbitmq-service
+  labels:
+    app: {{ $fullName }}-rabbitmq
+    {{- include "eoloplants.labels" . | nindent 4 }}
+spec:
+  ports:
+  - port: 5672
+    targetPort: 5672
+    protocol: TCP
+    name: {{ $fullName }}-rabbitmq-port-5672
+  - port: 15672
+    targetPort: 15672
+    protocol: TCP
+    name: {{ $fullName }}-rabbitmq-port-15672
+  selector:
+    app: {{ $fullName }}-rabbitmq
+  type: ClusterIP
+
+{{- if .Values.useNetworkPolicies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullName }}-rabbitmq-from-planner-server
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $fullName }}-rabbitmq
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: {{ $fullName }}-planner
+    - podSelector:
+        matchLabels:
+          app: {{ $fullName }}-server
+    ports:
+    - port: 5672
+      protocol: TCP
+{{- end -}}

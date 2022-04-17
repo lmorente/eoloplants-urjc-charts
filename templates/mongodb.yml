@@ -1,0 +1,108 @@
+---
+{{- $fullName := include "eoloplants.fullname" . -}}
+{{- $useExistingVolume := (.Values.persistence.useExistingVolumes) -}}
+{{- $dinamicallyCreateVolume := (.Values.persistence.dinamicallyCreateVolumes) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}-mongodb-deploy
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ $fullName }}-mongodb
+      {{- include "eoloplants.selectorLabels" . | nindent 6 }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ $fullName }}-mongodb
+        {{- include "eoloplants.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: {{ $fullName }}-mongodb
+        image: {{ .Values.images.mongo.repository }}:{{ .Values.images.mongo.tag }} 
+        imagePullPolicy: {{ .Values.images.mongo.pullPolicy }}
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: topoDB
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: root
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: password
+        ports:
+        - containerPort: 27017
+        - containerPort: 27018
+        - containerPort: 27019
+        volumeMounts:
+        - mountPath: /data/db
+          name: {{ $fullName }}-datadb
+      volumes:
+      - name: {{ $fullName }}-datadb
+        persistentVolumeClaim:
+          claimName: {{ $fullName }}-mongo-pvc
+---
+### PVC ###
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullName }}-mongo-pvc
+spec:
+  {{- if $useExistingVolume }}
+  storageClassName: {{ $fullName }}-{{ .Values.persistence.mongo.storageClass }}
+  {{- else if $dinamicallyCreateVolume }}
+  storageClassName: {{ .Values.persistence.defaultStorageClassName }}
+  {{- else }}
+  storageClassName: {{ $fullName }}-mongo
+  {{- end }}
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi          
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName }}-mongodb-service
+  labels:
+    app: {{ $fullName }}-mongodb
+    {{- include "eoloplants.labels" . | nindent 4 }}
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+    protocol: TCP
+    name: {{ $fullName }}-mongodb-port-27017
+  - port: 27018
+    targetPort: 27018
+    protocol: TCP
+    name: {{ $fullName }}-mongodb-port-27018
+  - port: 27019
+    targetPort: 27019
+    protocol: TCP
+    name: {{ $fullName }}-mongodb-port-27019
+  selector:
+    app: {{ $fullName }}-mongodb
+  type: ClusterIP
+
+{{- if .Values.useNetworkPolicies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullName }}-mongodb-from-topo
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $fullName }}-mongodb
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: {{ $fullName }}-toposervice
+    ports:
+    - port: 27017
+      protocol: TCP
+{{- end -}}
