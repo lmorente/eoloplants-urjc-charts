@@ -1,0 +1,29 @@
+{{- if .Values.useNetworkPolicies }}
+---
+{{- $fullName := include "eoloplants.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullName }}-default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullName }}-dns-egress
+spec:
+  podSelector:
+    matchLabels:
+      dns-policy: enabled
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+{{- end -}}
+
